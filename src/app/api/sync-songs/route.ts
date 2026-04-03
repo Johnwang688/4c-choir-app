@@ -182,7 +182,7 @@ export async function POST(request: NextRequest) {
 
   await upsertSongs(supabaseUrl, serviceRoleKey, rows);
   await deleteStaleSongs(supabaseUrl, serviceRoleKey, rows.map((r) => r.id));
-  revalidateTag("songs");
+  revalidateTag("songs", "max");
 
   return NextResponse.json({ ok: true, synced: rows.length });
 }
