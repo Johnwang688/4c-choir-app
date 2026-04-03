@@ -7,7 +7,9 @@ CREATE TABLE songs (
   youtube_url    text NOT NULL DEFAULT ''
 );
 
--- Allow anyone (including unauthenticated) to read songs
+-- Allow anyone (including unauthenticated) to read songs.
+-- Writes (INSERT/UPDATE/DELETE) are performed server-side using the service_role key,
+-- which bypasses RLS entirely — no additional write policy is needed.
 ALTER TABLE songs ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Public read" ON songs FOR SELECT USING (true);
 

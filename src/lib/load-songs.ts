@@ -19,7 +19,7 @@ export async function loadSongs(): Promise<Song[]> {
         apikey: anonKey,
         Authorization: `Bearer ${anonKey}`,
       },
-      next: { revalidate: 60 },
+      next: { revalidate: 60, tags: ["songs"] },
     },
   );
 
