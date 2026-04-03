@@ -6,7 +6,9 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "sync:songs": "tsx scripts/sync-songs-from-sheet.ts",
+    "sync:songs:watch": "tsx scripts/sync-songs-from-sheet.ts --watch"
   },
   "dependencies": {
     "next": "16.2.2",
@@ -21,6 +23,8 @@
     "eslint": "^9",
     "eslint-config-next": "16.2.2",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "tsx": "^4.21.0",
+    "typescript": "^5",
+    "dotenv": "^17.2.3"
   }
 }
