@@ -1,21 +1,39 @@
 import type { Song } from "@/types/song";
-import seed from "@/data/songs.json";
-import { parseSheetCsv } from "@/lib/sheet-csv";
+import { getSupabaseAuthEnv } from "@/lib/supabase-auth";
+
+type SongRow = {
+  id: string;
+  title: string;
+  author: string;
+  sheet_music_url: string;
+  youtube_url: string;
+};
 
 export async function loadSongs(): Promise<Song[]> {
-  const url = process.env.SHEETS_CSV_URL?.trim();
-  if (!url) {
-    return seed as Song[];
+  const { url, anonKey } = getSupabaseAuthEnv();
+
+  const res = await fetch(
+    `${url}/rest/v1/songs?select=id,title,author,sheet_music_url,youtube_url&order=title.asc`,
+    {
+      headers: {
+        apikey: anonKey,
+        Authorization: `Bearer ${anonKey}`,
+      },
+      next: { revalidate: 60 },
+    },
+  );
+
+  if (!res.ok) {
+    throw new Error(`Failed to load songs from Supabase (${res.status})`);
   }
 
-  try {
-    const res = await fetch(url, { next: { revalidate: 300 } });
-    if (!res.ok) {
-      return seed as Song[];
-    }
-    const parsed = parseSheetCsv(await res.text());
-    return parsed.length > 0 ? parsed : (seed as Song[]);
-  } catch {
-    return seed as Song[];
-  }
+  const rows = (await res.json()) as SongRow[];
+
+  return rows.map((row) => ({
+    id: row.id,
+    title: row.title,
+    author: row.author,
+    sheetMusicUrl: row.sheet_music_url,
+    youtubeUrl: row.youtube_url,
+  }));
 }

@@ -7,8 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "sync:songs": "tsx scripts/sync-songs-from-sheet.ts",
-    "sync:songs:watch": "tsx scripts/sync-songs-from-sheet.ts --watch"
+    "sync:songs": "tsx scripts/sync-songs-to-supabase.ts"
   },
   "dependencies": {
     "next": "16.2.2",
