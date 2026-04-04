@@ -113,11 +113,7 @@ export function AuthButton() {
       if (data.needsEmailConfirmation) {
         setMode("sign-in");
       } else {
-        setSession({
-          authenticated: true,
-          email: data.user?.email ?? email,
-        });
-        setIsOpen(false);
+        window.location.reload();
       }
     } catch {
       setError("Network error. Please try again.");
@@ -133,10 +129,7 @@ export function AuthButton() {
 
     try {
       await fetch("/api/auth/sign-out", { method: "POST" });
-      setSession({ authenticated: false, email: null });
-      setEmail("");
-      setPassword("");
-      setIsOpen(false);
+      window.location.reload();
     } catch {
       setError("Unable to sign out right now.");
     } finally {
@@ -210,10 +203,22 @@ export function AuthButton() {
                 <button
                   type="button"
                   onClick={() => setIsOpen(false)}
-                  className="shrink-0 rounded-full p-2 text-stone-500 transition-colors hover:bg-stone-100 hover:text-stone-700"
+                  className="inline-flex size-9 shrink-0 items-center justify-center rounded-full text-stone-500 transition-colors hover:bg-stone-100 hover:text-stone-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-stone-400 focus-visible:ring-offset-2"
                   aria-label="Close auth dialog"
                 >
-                  X
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth={2}
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    className="size-[18px]"
+                    aria-hidden
+                  >
+                    <path d="M18 6 6 18M6 6l12 12" />
+                  </svg>
                 </button>
               </div>
 
