@@ -1,6 +1,13 @@
 import { revalidateTag } from "next/cache";
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseAuthEnv } from "@/lib/supabase-auth";
+import {
+  assertLikelySheetCsv,
+  assertRowIdsSane,
+  dedupeSyncRowsById,
+  deleteStaleSongsUrl,
+  formatSheetFetchError,
+} from "@/lib/sync-songs-supabase";
 
 // ---------------------------------------------------------------------------
 // CSV parsing (Google Sheets "publish to web → CSV" format)
@@ -103,19 +110,14 @@ async function deleteStaleSongs(
 ) {
   if (keepIds.length === 0) return;
 
-  // Build ?id=not.in.(id1,id2,...) filter
-  const list = keepIds.map((id) => `"${id}"`).join(",");
-  const res = await fetch(
-    `${supabaseUrl}/rest/v1/songs?id=not.in.(${list})`,
-    {
-      method: "DELETE",
-      headers: {
-        apikey: serviceRoleKey,
-        Authorization: `Bearer ${serviceRoleKey}`,
-        Prefer: "return=minimal",
-      },
+  const res = await fetch(deleteStaleSongsUrl(supabaseUrl, keepIds), {
+    method: "DELETE",
+    headers: {
+      apikey: serviceRoleKey,
+      Authorization: `Bearer ${serviceRoleKey}`,
+      Prefer: "return=minimal",
     },
-  );
+  });
 
   if (!res.ok) {
     const body = await res.text().catch(() => "");
@@ -167,12 +169,15 @@ export async function POST(request: NextRequest) {
   const sheetRes = await fetch(sheetUrl, { cache: "no-store" });
   if (!sheetRes.ok) {
     return NextResponse.json(
-      { ok: false, error: `Sheet fetch failed (${sheetRes.status})` },
+      { ok: false, error: formatSheetFetchError(sheetRes.status) },
       { status: 502 },
     );
   }
 
-  const rows = parseCsv(await sheetRes.text());
+  const sheetBody = await sheetRes.text();
+  assertLikelySheetCsv(sheetBody, sheetRes.headers.get("content-type"));
+  let rows = parseCsv(sheetBody);
+  assertRowIdsSane(rows);
   if (rows.length === 0) {
     return NextResponse.json(
       { ok: false, error: "CSV parsed to 0 rows — aborting to avoid data loss" },
@@ -180,11 +185,20 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  const rowsParsed = rows.length;
+  rows = dedupeSyncRowsById(rows);
+
   await upsertSongs(supabaseUrl, serviceRoleKey, rows);
   await deleteStaleSongs(supabaseUrl, serviceRoleKey, rows.map((r) => r.id));
   revalidateTag("songs", "max");
 
-  return NextResponse.json({ ok: true, synced: rows.length });
+  return NextResponse.json({
+    ok: true,
+    synced: rows.length,
+    ...(rows.length < rowsParsed && {
+      duplicateIdsSkipped: rowsParsed - rows.length,
+    }),
+  });
 }
 
 // Allow triggering manually via GET (e.g. browser or curl) when CRON_SECRET is not set.

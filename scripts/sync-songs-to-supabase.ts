@@ -7,6 +7,14 @@
 import { config } from "dotenv";
 import { resolve } from "path";
 
+import {
+  assertLikelySheetCsv,
+  assertRowIdsSane,
+  dedupeSyncRowsById,
+  deleteStaleSongsUrl,
+  formatSheetFetchError,
+} from "../src/lib/sync-songs-supabase";
+
 config({ path: resolve(process.cwd(), ".env.local") });
 config({ path: resolve(process.cwd(), ".env") });
 
@@ -106,8 +114,7 @@ async function upsert(url: string, key: string, rows: SheetRow[]) {
 
 async function deleteStale(url: string, key: string, keepIds: string[]) {
   if (keepIds.length === 0) return;
-  const list = keepIds.map((id) => `"${id}"`).join(",");
-  const res = await fetch(`${url}/rest/v1/songs?id=not.in.(${list})`, {
+  const res = await fetch(deleteStaleSongsUrl(url, keepIds), {
     method: "DELETE",
     headers: {
       apikey: key,
@@ -136,10 +143,21 @@ async function main() {
 
   console.log("Fetching sheet…");
   const sheetRes = await fetch(sheetUrl);
-  if (!sheetRes.ok) throw new Error(`Sheet fetch failed (${sheetRes.status})`);
+  if (!sheetRes.ok) throw new Error(formatSheetFetchError(sheetRes.status));
 
-  const rows = parseCsv(await sheetRes.text());
+  const sheetBody = await sheetRes.text();
+  assertLikelySheetCsv(sheetBody, sheetRes.headers.get("content-type"));
+  let rows = parseCsv(sheetBody);
+  assertRowIdsSane(rows);
   if (rows.length === 0) throw new Error("CSV parsed to 0 rows — aborting");
+
+  const rawCount = rows.length;
+  rows = dedupeSyncRowsById(rows);
+  if (rows.length < rawCount) {
+    console.warn(
+      `Skipped ${rawCount - rows.length} row(s) with duplicate id; last row per id wins.`,
+    );
+  }
 
   console.log(`Upserting ${rows.length} songs…`);
   await upsert(supabaseUrl, serviceRoleKey, rows);
@@ -152,5 +170,5 @@ async function main() {
 
 main().catch((err) => {
   console.error(err instanceof Error ? err.message : String(err));
-  process.exit(1);
+  process.exitCode = 1;
 });
