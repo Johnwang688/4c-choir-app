@@ -1,7 +1,25 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import type { CSSProperties } from "react";
 import type { Song } from "@/types/song";
+
+const DEFAULT_VISIBLE_SONGS = 8;
+const FAVORITE_HEART_ANIMATION_MS = 1100;
+const HEART_BURST_VARIANTS = [
+  { driftX: 24, driftY: -36, scale: 1, rotate: -10 },
+  { driftX: 31, driftY: -44, scale: 1.1, rotate: 8 },
+  { driftX: 27, driftY: -40, scale: 1.16, rotate: -4 },
+] as const;
+
+type FavoriteHeartBurst = {
+  id: number;
+  songId: string;
+  driftX: number;
+  driftY: number;
+  scale: number;
+  rotate: number;
+};
 
 function normalize(s: string) {
   return s.toLowerCase().trim();
@@ -87,6 +105,10 @@ export function WorshipCatalog({ songs }: { songs: Song[] }) {
   }>({ authenticated: false, email: null });
   const [favorites, setFavorites] = useState<Set<string>>(new Set());
   const [showFavorites, setShowFavorites] = useState(false);
+  const [expanded, setExpanded] = useState(false);
+  const [heartBursts, setHeartBursts] = useState<FavoriteHeartBurst[]>([]);
+  const heartBurstTimeouts = useRef<number[]>([]);
+  const heartBurstId = useRef(0);
 
   useEffect(() => {
     async function loadSession() {
@@ -117,9 +139,48 @@ export function WorshipCatalog({ songs }: { songs: Song[] }) {
     void loadSession();
   }, []);
 
+  useEffect(() => {
+    return () => {
+      for (const timeoutId of heartBurstTimeouts.current) {
+        window.clearTimeout(timeoutId);
+      }
+    };
+  }, []);
+
+  function launchFavoriteHeart(songId: string) {
+    const variant =
+      HEART_BURST_VARIANTS[heartBurstId.current % HEART_BURST_VARIANTS.length];
+    const burst: FavoriteHeartBurst = {
+      id: heartBurstId.current,
+      songId,
+      driftX: variant.driftX,
+      driftY: variant.driftY,
+      scale: variant.scale,
+      rotate: variant.rotate,
+    };
+    heartBurstId.current += 1;
+
+    setHeartBursts((prev) => [...prev, burst]);
+
+    const timeoutId = window.setTimeout(() => {
+      setHeartBursts((prev) => prev.filter((heart) => heart.id !== burst.id));
+      heartBurstTimeouts.current = heartBurstTimeouts.current.filter(
+        (value) => value !== timeoutId,
+      );
+    }, FAVORITE_HEART_ANIMATION_MS);
+
+    heartBurstTimeouts.current.push(timeoutId);
+  }
+
   function toggleFavorite(songId: string) {
     if (!session.authenticated || !session.email) return;
     const email = session.email;
+    const shouldFavorite = !favorites.has(songId);
+
+    if (shouldFavorite) {
+      launchFavoriteHeart(songId);
+    }
+
     setFavorites((prev) => {
       const next = new Set(prev);
       if (next.has(songId)) {
@@ -145,6 +206,12 @@ export function WorshipCatalog({ songs }: { songs: Song[] }) {
     });
   }, [q, songs, showFavorites, favorites]);
 
+  const visibleSongs = expanded
+    ? filtered
+    : filtered.slice(0, DEFAULT_VISIBLE_SONGS);
+
+  const shouldShowToggle = filtered.length > DEFAULT_VISIBLE_SONGS;
+
   return (
     <div className="mx-auto w-full max-w-3xl px-4 pb-16 pt-6 sm:px-6 sm:pt-8">
       {session.authenticated && (
@@ -154,16 +221,17 @@ export function WorshipCatalog({ songs }: { songs: Song[] }) {
             onClick={() => {
               setShowFavorites((v) => !v);
               setQ("");
+              setExpanded(false);
             }}
             className={
               showFavorites
-                ? "inline-flex items-center gap-2 rounded-full border border-rose-300 bg-rose-100 px-4 py-2 text-sm font-medium text-rose-700 transition-colors"
-                : "inline-flex items-center gap-2 rounded-full border border-stone-200 bg-white px-4 py-2 text-sm font-medium text-stone-600 transition-colors hover:border-rose-200 hover:bg-rose-50 hover:text-rose-700"
+                ? "glass-chip inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium text-white shadow-lg"
+                : "glass-chip inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium text-violet-100/78 hover:border-fuchsia-200/30 hover:text-white"
             }
           >
             <IconHeart
               className={
-                showFavorites ? "size-4 text-rose-500" : "size-4 text-stone-400"
+                showFavorites ? "size-4 text-fuchsia-200" : "size-4 text-violet-200/65"
               }
               filled={showFavorites}
             />
@@ -172,8 +240,8 @@ export function WorshipCatalog({ songs }: { songs: Song[] }) {
               <span
                 className={
                   showFavorites
-                    ? "rounded-full bg-rose-500 px-1.5 py-0.5 text-xs font-semibold text-white"
-                    : "rounded-full bg-stone-200 px-1.5 py-0.5 text-xs font-semibold text-stone-600"
+                    ? "rounded-full bg-white/18 px-1.5 py-0.5 text-xs font-semibold text-white"
+                    : "rounded-full bg-white/12 px-1.5 py-0.5 text-xs font-semibold text-violet-100/82"
                 }
               >
                 {favorites.size}
@@ -184,19 +252,22 @@ export function WorshipCatalog({ songs }: { songs: Song[] }) {
       )}
 
       <div className="relative mb-8">
-        <IconSearch className="pointer-events-none absolute left-3 top-1/2 size-5 -translate-y-1/2 text-stone-400" />
+        <IconSearch className="pointer-events-none absolute left-3 top-1/2 size-5 -translate-y-1/2 text-violet-100/55" />
         <input
           type="search"
           value={q}
-          onChange={(e) => setQ(e.target.value)}
-          placeholder="Search by title or author…"
-          className="w-full rounded-2xl border border-stone-200 bg-white py-3 pl-11 pr-4 text-[15px] text-stone-900 shadow-sm outline-none ring-rose-400/20 placeholder:text-stone-400 focus:border-rose-300 focus:ring-4"
+          onChange={(e) => {
+            setQ(e.target.value);
+            setExpanded(false);
+          }}
+          placeholder="Search by title or author..."
+          className="crystal-input w-full rounded-2xl py-3 pl-11 pr-4 text-[15px] shadow-xl outline-none"
           spellCheck={false}
           aria-label="Search songs"
         />
       </div>
 
-      <p className="mb-4 text-sm text-stone-400">
+      <p className="mb-4 text-sm text-violet-100/62">
         {showFavorites
           ? `${filtered.length} favorite${filtered.length === 1 ? "" : "s"}`
           : filtered.length === songs.length
@@ -205,15 +276,15 @@ export function WorshipCatalog({ songs }: { songs: Song[] }) {
       </p>
 
       <ul className="flex flex-col gap-3">
-        {filtered.map((song) => (
+        {visibleSongs.map((song) => (
           <li key={song.id}>
-            <article className="rounded-2xl border border-stone-200/80 bg-white p-5 shadow-sm transition-shadow hover:shadow-md">
+            <article className="glass-panel rounded-[1.7rem] p-5 transition-transform duration-300 hover:-translate-y-0.5">
               <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
                 <div className="min-w-0 flex-1">
-                  <h2 className="text-lg font-semibold leading-snug text-stone-900">
+                  <h2 className="metallic-text text-lg font-semibold leading-snug">
                     {song.title}
                   </h2>
-                  <p className="mt-1 text-sm leading-relaxed text-stone-500">
+                  <p className="mt-1 text-sm leading-relaxed text-violet-100/66">
                     {song.author}
                   </p>
                 </div>
@@ -229,10 +300,29 @@ export function WorshipCatalog({ songs }: { songs: Song[] }) {
                       }
                       className={
                         favorites.has(song.id)
-                          ? "inline-flex items-center justify-center rounded-lg border border-rose-200 bg-rose-50 p-2 text-rose-500 transition-colors hover:bg-rose-100"
-                          : "inline-flex items-center justify-center rounded-lg border border-stone-200 bg-stone-50 p-2 text-stone-400 transition-colors hover:border-rose-200 hover:bg-rose-50 hover:text-rose-500"
+                          ? "glass-chip relative inline-flex items-center justify-center overflow-visible rounded-xl p-2 text-fuchsia-200"
+                          : "glass-chip relative inline-flex items-center justify-center overflow-visible rounded-xl p-2 text-violet-100/56 hover:text-fuchsia-200"
                       }
                     >
+                      {heartBursts
+                        .filter((heart) => heart.songId === song.id)
+                        .map((heart) => (
+                          <span
+                            key={heart.id}
+                            className="favorite-heart-burst"
+                            style={
+                              {
+                                "--favorite-heart-drift-x": `${heart.driftX}px`,
+                                "--favorite-heart-drift-y": `${heart.driftY}px`,
+                                "--favorite-heart-scale": heart.scale,
+                                "--favorite-heart-rotate": `${heart.rotate}deg`,
+                              } as CSSProperties
+                            }
+                            aria-hidden
+                          >
+                            <IconHeart className="size-4" filled />
+                          </span>
+                        ))}
                       <IconHeart
                         className="size-4"
                         filled={favorites.has(song.id)}
@@ -243,16 +333,16 @@ export function WorshipCatalog({ songs }: { songs: Song[] }) {
                     href={song.sheetMusicUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center gap-2 rounded-lg border border-stone-200 bg-stone-50 px-3 py-2 text-sm font-medium text-stone-700 transition-colors hover:border-rose-200 hover:bg-rose-50 hover:text-rose-900"
+                    className="glass-chip inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium text-violet-50 hover:text-white"
                   >
-                    <IconSheet className="size-4 text-rose-400" />
+                    <IconSheet className="size-4 text-fuchsia-200" />
                     乐谱
                   </a>
                   <a
                     href={song.youtubeUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center gap-2 rounded-lg border border-transparent bg-rose-400 px-3 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-rose-500"
+                    className="amethyst-button inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium"
                   >
                     <IconPlay className="size-4 text-white/90" />
                     YouTube
@@ -264,12 +354,24 @@ export function WorshipCatalog({ songs }: { songs: Song[] }) {
         ))}
       </ul>
 
+      {shouldShowToggle && (
+        <div className="mt-5 flex justify-center">
+          <button
+            type="button"
+            onClick={() => setExpanded((value) => !value)}
+            className="glass-chip inline-flex items-center rounded-full px-5 py-2.5 text-sm font-medium text-violet-100/82 hover:border-fuchsia-200/30 hover:text-white"
+          >
+            {expanded ? "See less" : "See more"}
+          </button>
+        </div>
+      )}
+
       {filtered.length === 0 && showFavorites ? (
-        <p className="mt-10 text-center text-sm text-stone-400">
+        <p className="mt-10 text-center text-sm text-violet-100/60">
           No favorites yet. Tap the heart on any song to save it here.
         </p>
       ) : filtered.length === 0 ? (
-        <p className="mt-10 text-center text-sm text-stone-400">
+        <p className="mt-10 text-center text-sm text-violet-100/60">
           No songs match &ldquo;{q}&rdquo;. Try another search.
         </p>
       ) : null}

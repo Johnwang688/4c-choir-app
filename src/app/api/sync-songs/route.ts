@@ -78,6 +78,27 @@ function parseCsv(text: string): SheetRow[] {
 }
 
 // ---------------------------------------------------------------------------
+// Per-row validation — detect obviously mid-edit / partial data
+// ---------------------------------------------------------------------------
+
+const HTTP_RE = /^https?:\/\/.+/;
+
+/**
+ * Returns false if a row shows obvious signs of being mid-edit:
+ *   - id starts with "row-" → we couldn't find a real record ID (blank ID cell)
+ *   - a non-empty URL field doesn't look like a URL (partial typing)
+ *
+ * Author is free-text so it is never rejected. Empty-title rows are
+ * already dropped by parseCsv before this runs.
+ */
+function isRowValid(row: SheetRow): boolean {
+  if (row.id.startsWith("row-")) return false;
+  if (row.sheet_music_url && !HTTP_RE.test(row.sheet_music_url)) return false;
+  if (row.youtube_url && !HTTP_RE.test(row.youtube_url)) return false;
+  return true;
+}
+
+// ---------------------------------------------------------------------------
 // Supabase upsert helpers
 // ---------------------------------------------------------------------------
 
@@ -125,6 +146,22 @@ async function deleteStaleSongs(
   }
 }
 
+async function upsertLastSyncedAt(supabaseUrl: string, serviceRoleKey: string) {
+  const base = supabaseUrl.replace(/\/$/, "");
+  await fetch(`${base}/rest/v1/metadata`, {
+    method: "POST",
+    headers: {
+      apikey: serviceRoleKey,
+      Authorization: `Bearer ${serviceRoleKey}`,
+      "Content-Type": "application/json",
+      Prefer: "resolution=merge-duplicates",
+    },
+    body: JSON.stringify([
+      { key: "last_synced_at", value: new Date().toISOString() },
+    ]),
+  });
+}
+
 // ---------------------------------------------------------------------------
 // Route handler — called by Vercel Cron (and optionally manually)
 // ---------------------------------------------------------------------------
@@ -165,17 +202,49 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  // Fetch the sheet
-  const sheetRes = await fetch(sheetUrl, { cache: "no-store" });
-  if (!sheetRes.ok) {
+  // ------------------------------------------------------------------
+  // Double-fetch consistency guard
+  // Fetch the sheet twice, 3 seconds apart. If the content differs
+  // between the two fetches it means the sheet was saved mid-check,
+  // so we abort rather than risk capturing a half-edited state.
+  //
+  // Note: Google's "publish to web" CSV can lag ~30-60 s behind live
+  // edits, so this catches saves that land within the publish window
+  // rather than every keystroke. It is a zero-credential best-effort
+  // guard. For stronger protection consider Drive API modifiedTime.
+  // ------------------------------------------------------------------
+  async function fetchSheet() {
+    const res = await fetch(sheetUrl, { cache: "no-store" });
+    if (!res.ok) {
+      return NextResponse.json(
+        { ok: false, error: formatSheetFetchError(res.status) },
+        { status: 502 },
+      );
+    }
+    return { body: await res.text(), contentType: res.headers.get("content-type") };
+  }
+
+  const first = await fetchSheet();
+  if (first instanceof NextResponse) return first;
+
+  await new Promise<void>((resolve) => setTimeout(resolve, 3000));
+
+  const second = await fetchSheet();
+  if (second instanceof NextResponse) return second;
+
+  if (first.body !== second.body) {
     return NextResponse.json(
-      { ok: false, error: formatSheetFetchError(sheetRes.status) },
-      { status: 502 },
+      {
+        ok: false,
+        error:
+          "Sheet content changed between consistency checks — someone may be editing. Sync aborted; will retry on the next cycle.",
+      },
+      { status: 409 },
     );
   }
 
-  const sheetBody = await sheetRes.text();
-  assertLikelySheetCsv(sheetBody, sheetRes.headers.get("content-type"));
+  const sheetBody = first.body;
+  assertLikelySheetCsv(sheetBody, first.contentType);
   let rows = parseCsv(sheetBody);
   assertRowIdsSane(rows);
   if (rows.length === 0) {
@@ -188,15 +257,35 @@ export async function POST(request: NextRequest) {
   const rowsParsed = rows.length;
   rows = dedupeSyncRowsById(rows);
 
-  await upsertSongs(supabaseUrl, serviceRoleKey, rows);
+  // ------------------------------------------------------------------
+  // Per-row validation — preserve DB values for suspect rows rather
+  // than overwriting with mid-edit garbage.
+  //
+  // Suspect rows are excluded from the upsert so the database keeps
+  // whatever value it already has for those IDs. Their IDs are still
+  // included in keepIds so they are NOT deleted while being edited.
+  // Row order in the sheet doesn't matter — matching is always by ID.
+  // ------------------------------------------------------------------
+  const validRows = rows.filter(isRowValid);
+  const suspectRows = rows.filter((r) => !isRowValid(r));
+
+  if (validRows.length > 0) {
+    await upsertSongs(supabaseUrl, serviceRoleKey, validRows);
+  }
+  // Pass ALL IDs (valid + suspect) so suspect rows are never deleted.
   await deleteStaleSongs(supabaseUrl, serviceRoleKey, rows.map((r) => r.id));
+  await upsertLastSyncedAt(supabaseUrl, serviceRoleKey);
   revalidateTag("songs", "max");
 
   return NextResponse.json({
     ok: true,
-    synced: rows.length,
+    synced: validRows.length,
     ...(rows.length < rowsParsed && {
       duplicateIdsSkipped: rowsParsed - rows.length,
+    }),
+    ...(suspectRows.length > 0 && {
+      suspectRowsPreserved: suspectRows.length,
+      suspectRowIds: suspectRows.map((r) => r.id),
     }),
   });
 }

@@ -1,8 +1,11 @@
 @import "tailwindcss";
 
 :root {
-  --background: #faf8f5;
-  --foreground: #292524;
+  --background: #12071f;
+  --foreground: #f8efff;
+  --surface-border: rgba(242, 226, 255, 0.2);
+  --surface-shadow: 0 24px 80px rgba(20, 4, 40, 0.46);
+  --glass-blur: 22px;
 }
 
 @theme inline {
@@ -11,7 +14,271 @@
   --font-sans: var(--font-noto-sc), ui-sans-serif, system-ui, sans-serif;
 }
 
+html {
+  background:
+    radial-gradient(circle at top, #44206a 0%, #1a082d 46%, #09030f 100%);
+}
+
 body {
-  background: var(--background);
+  position: relative;
+  overflow-x: hidden;
+  background:
+    radial-gradient(circle at 20% 18%, rgba(209, 167, 255, 0.18), transparent 32%),
+    radial-gradient(circle at 80% 15%, rgba(147, 107, 255, 0.22), transparent 28%),
+    radial-gradient(circle at 50% 70%, rgba(245, 213, 255, 0.1), transparent 42%),
+    linear-gradient(135deg, #09030f 0%, #1b092d 34%, #32104c 68%, #13081e 100%);
   color: var(--foreground);
+  isolation: isolate;
+}
+
+body::before,
+body::after {
+  content: "";
+  position: fixed;
+  inset: -12%;
+  pointer-events: none;
+  z-index: -2;
+}
+
+body::before {
+  background:
+    radial-gradient(circle at 18% 24%, rgba(255, 255, 255, 0.82) 0 0.28%, transparent 0.55%),
+    radial-gradient(circle at 74% 18%, rgba(255, 220, 251, 0.72) 0 0.22%, transparent 0.5%),
+    radial-gradient(circle at 64% 74%, rgba(226, 177, 255, 0.55) 0 0.26%, transparent 0.52%),
+    radial-gradient(circle at 34% 78%, rgba(255, 255, 255, 0.66) 0 0.18%, transparent 0.45%),
+    radial-gradient(circle at 83% 62%, rgba(212, 168, 255, 0.56) 0 0.2%, transparent 0.46%),
+    radial-gradient(circle at 12% 68%, rgba(255, 233, 250, 0.72) 0 0.24%, transparent 0.5%);
+  background-size: 44rem 44rem, 36rem 36rem, 42rem 42rem, 30rem 30rem, 40rem 40rem, 34rem 34rem;
+  mix-blend-mode: screen;
+  opacity: 0.85;
+  filter: blur(0.4px) saturate(135%);
+  animation: glitter-drift 36s linear infinite;
+}
+
+body::after {
+  background:
+    radial-gradient(circle at 20% 30%, rgba(255, 255, 255, 0.2), transparent 18%),
+    radial-gradient(circle at 80% 18%, rgba(217, 161, 255, 0.3), transparent 24%),
+    radial-gradient(circle at 50% 50%, rgba(255, 246, 255, 0.12), transparent 30%),
+    conic-gradient(
+      from 140deg at 50% 50%,
+      rgba(255, 255, 255, 0.14),
+      rgba(186, 131, 255, 0.08),
+      rgba(255, 255, 255, 0.02),
+      rgba(236, 192, 255, 0.18),
+      rgba(255, 255, 255, 0.14)
+    );
+  mix-blend-mode: screen;
+  filter: blur(34px) saturate(125%);
+  opacity: 0.9;
+  animation: aurora-drift 24s ease-in-out infinite alternate;
+}
+
+a,
+button,
+input,
+textarea {
+  transition:
+    background-color 180ms ease,
+    border-color 180ms ease,
+    color 180ms ease,
+    box-shadow 180ms ease,
+    transform 180ms ease;
+}
+
+::selection {
+  background: rgba(207, 155, 255, 0.32);
+  color: white;
+}
+
+.app-shell {
+  position: relative;
+  min-height: 100%;
+  background:
+    linear-gradient(180deg, rgba(16, 6, 28, 0.22), rgba(16, 6, 28, 0.34));
+}
+
+.app-shell::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: -1;
+  background:
+    linear-gradient(120deg, transparent 22%, rgba(255, 255, 255, 0.06) 34%, transparent 44%),
+    linear-gradient(300deg, transparent 45%, rgba(255, 214, 255, 0.05) 56%, transparent 68%);
+  background-size: 200% 200%;
+  mix-blend-mode: screen;
+  animation: sheen-drift 18s ease-in-out infinite alternate;
+}
+
+.glass-panel {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid var(--surface-border);
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.24), rgba(196, 152, 255, 0.08) 48%, rgba(255, 255, 255, 0.12)),
+    linear-gradient(160deg, rgba(86, 34, 133, 0.56), rgba(26, 11, 46, 0.72));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.24),
+    inset 0 -12px 30px rgba(54, 14, 98, 0.24),
+    var(--surface-shadow);
+  backdrop-filter: blur(var(--glass-blur)) saturate(150%);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(150%);
+}
+
+.glass-panel::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at top left, rgba(255, 255, 255, 0.34), transparent 34%),
+    linear-gradient(115deg, transparent 26%, rgba(255, 255, 255, 0.18) 39%, transparent 54%);
+  mix-blend-mode: screen;
+  opacity: 0.7;
+}
+
+.glass-chip {
+  border: 1px solid rgba(244, 224, 255, 0.22);
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.22), rgba(225, 192, 255, 0.08)),
+    rgba(74, 27, 111, 0.42);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.18),
+    0 10px 24px rgba(24, 5, 48, 0.24);
+  backdrop-filter: blur(18px) saturate(145%);
+  -webkit-backdrop-filter: blur(18px) saturate(145%);
+}
+
+.crystal-input {
+  border: 1px solid rgba(244, 224, 255, 0.18);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.16), rgba(198, 164, 255, 0.08)),
+    rgba(29, 9, 48, 0.46);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.16),
+    0 12px 26px rgba(12, 2, 28, 0.22);
+  color: #f8efff;
+}
+
+.crystal-input::placeholder {
+  color: rgba(235, 220, 248, 0.56);
+}
+
+.crystal-input:focus {
+  border-color: rgba(239, 205, 255, 0.44);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.18),
+    0 0 0 4px rgba(221, 173, 255, 0.14),
+    0 18px 36px rgba(12, 2, 28, 0.28);
+}
+
+.amethyst-button {
+  border: 1px solid rgba(248, 220, 255, 0.28);
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.28), rgba(255, 255, 255, 0.06) 28%, transparent 46%),
+    linear-gradient(135deg, #ca87ff 0%, #9f57f6 38%, #6724b7 72%, #b36fff 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.32),
+    inset 0 -12px 20px rgba(68, 17, 118, 0.34),
+    0 16px 34px rgba(40, 8, 73, 0.34);
+  color: white;
+}
+
+.amethyst-button:hover {
+  transform: translateY(-1px);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.32),
+    inset 0 -12px 20px rgba(68, 17, 118, 0.3),
+    0 20px 40px rgba(40, 8, 73, 0.42);
+  filter: saturate(112%) brightness(1.05);
+}
+
+.amethyst-button:disabled {
+  transform: none;
+  filter: grayscale(0.08) opacity(0.72);
+}
+
+.metallic-text {
+  color: #f7ecff;
+  text-shadow: 0 1px 18px rgba(255, 255, 255, 0.08);
+}
+
+.favorite-heart-burst {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  pointer-events: none;
+  color: #f77fbe;
+  opacity: 0;
+  filter: drop-shadow(0 8px 18px rgba(247, 127, 190, 0.42));
+  transform: translate(-50%, -50%);
+  animation: favorite-heart-burst 1100ms cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+}
+
+@keyframes glitter-drift {
+  0% {
+    transform: translate3d(0, 0, 0) rotate(0deg) scale(1);
+  }
+  50% {
+    transform: translate3d(-1.6%, 1.8%, 0) rotate(4deg) scale(1.04);
+  }
+  100% {
+    transform: translate3d(1.8%, -1.2%, 0) rotate(9deg) scale(1.07);
+  }
+}
+
+@keyframes aurora-drift {
+  0% {
+    transform: translate3d(-2%, -1%, 0) scale(1.02);
+  }
+  100% {
+    transform: translate3d(2%, 1.5%, 0) scale(1.12);
+  }
+}
+
+@keyframes sheen-drift {
+  0% {
+    background-position: 0% 0%, 100% 0%;
+  }
+  100% {
+    background-position: 100% 100%, 0% 100%;
+  }
+}
+
+@keyframes favorite-heart-burst {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.45);
+  }
+  18% {
+    opacity: 1;
+    transform:
+      translate(-50%, -50%)
+      scale(calc(var(--favorite-heart-scale, 1) * 1.2));
+  }
+  100% {
+    opacity: 0;
+    transform:
+      translate(
+        calc(-50% + var(--favorite-heart-drift-x, 28px)),
+        calc(-50% + var(--favorite-heart-drift-y, -42px))
+      )
+      rotate(var(--favorite-heart-rotate, 10deg))
+      scale(calc(var(--favorite-heart-scale, 1) * 0.92));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  body::before,
+  body::after,
+  .app-shell::before,
+  .favorite-heart-burst {
+    animation: none;
+  }
+
+  .favorite-heart-burst {
+    opacity: 0;
+  }
 }

@@ -37,3 +37,23 @@ export async function loadSongs(): Promise<Song[]> {
     youtubeUrl: row.youtube_url,
   }));
 }
+
+export async function loadLastSyncedAt(): Promise<string | null> {
+  const { url, anonKey } = getSupabaseAuthEnv();
+
+  const res = await fetch(
+    `${url}/rest/v1/metadata?key=eq.last_synced_at&select=value`,
+    {
+      headers: {
+        apikey: anonKey,
+        Authorization: `Bearer ${anonKey}`,
+      },
+      next: { revalidate: 60, tags: ["songs"] },
+    },
+  );
+
+  if (!res.ok) return null;
+
+  const rows = (await res.json()) as { value: string }[];
+  return rows[0]?.value ?? null;
+}
