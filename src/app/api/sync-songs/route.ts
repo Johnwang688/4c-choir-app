@@ -176,13 +176,14 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  const sheetUrl = process.env.SHEETS_CSV_URL?.trim();
+  const sheetUrl: string | undefined = process.env.SHEETS_CSV_URL?.trim();
   if (!sheetUrl) {
     return NextResponse.json(
       { ok: false, error: "SHEETS_CSV_URL is not configured" },
       { status: 503 },
     );
   }
+  const sheetUrlSafe: string = sheetUrl;
 
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
   if (!serviceRoleKey) {
@@ -214,7 +215,7 @@ export async function POST(request: NextRequest) {
   // guard. For stronger protection consider Drive API modifiedTime.
   // ------------------------------------------------------------------
   async function fetchSheet() {
-    const res = await fetch(sheetUrl, { cache: "no-store" });
+    const res = await fetch(sheetUrlSafe, { cache: "no-store" });
     if (!res.ok) {
       return NextResponse.json(
         { ok: false, error: formatSheetFetchError(res.status) },
